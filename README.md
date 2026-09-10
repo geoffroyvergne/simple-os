@@ -56,8 +56,8 @@ i386-elf-gdb build/kernel.elf -ex 'target remote :1234' -ex 'break kmain' -ex co
 boot/            stage 1 + stage 2 bootloader (NASM)
 kernel/
   main.c           entry point (kmain) — brings up every subsystem, then /sh
-  arch/x86/        CPU + platform: GDT, IDT, ISRs, TSS, PIC, paging, ring-3
-                   switch, port I/O, the E820 boot handoff, linker script
+  arch/x86/        CPU + platform: GDT, IDT, ISRs, TSS, PIC, paging, context
+                   switch + ring-3 entry, port I/O, E820 handoff, linker script
   mm/              bitmap frame allocator, paging setup, kmalloc, per-process
                    address spaces (vmm), the mm_init orchestrator
   drivers/         serial (COM1), PS/2 keyboard, ATA PIO disk, PIT timer
@@ -96,7 +96,7 @@ Kernel headers are included path-qualified from `kernel/`, e.g.
 3. The kernel entry stub zeroes `.bss`, sets up a stack, and calls `kmain`,
    which initializes: console + serial → GDT → TSS → IDT + PIC + syscall gate →
    PIT (100 Hz) → PMM + paging + kmalloc → keyboard → `sti` → ATA + filesystem →
-   process subsystem → /sh (user mode).
+   scheduler → spawn `/sh`. The boot thread then becomes the idle task.
 
 ## Memory map
 
@@ -117,6 +117,33 @@ data stay mapped, and adds user pages above 1 GiB:
 | user stack    | `0x4FFFC000 .. 0x50000000` (16 KiB) |
 
 The kernel is still identity-mapped low (no higher-half yet).
+
+## Processes & scheduling
+
+A fixed 16-slot process table lives in [proc/proc.c](kernel/proc/proc.c). Each
+process has its own page directory, a 16 KiB kernel stack, an 8-entry file
+descriptor table, a parent link, and a state: `RUNNABLE`, `RUNNING`,
+`BLOCKED` (on a wait channel) or `ZOMBIE`.
+
+- **Idle task.** The boot thread becomes process 0. When nothing else is
+  runnable it `hlt`s; it also reaps orphaned zombies and re-spawns `/sh` if
+  the shell ever exits.
+- **Scheduling** is plain round-robin. `switch_context` (in
+  `arch/x86/switch.asm`) saves the callee-saved registers + `esp` of the
+  outgoing thread, loads the incoming one's page directory and kernel stack,
+  and returns into wherever it last stopped. A brand-new process is given a
+  hand-crafted kernel stack so its first switch "returns" into a bootstrap
+  that drops to ring 3.
+- **Preemption.** The PIT tick decrements a time slice and, when it expires,
+  sets a resched flag. `interrupt_dispatch` acts on that flag **only when the
+  interrupted code was in user mode** — the kernel itself is never preempted.
+- **Blocking.** `read`, `wait` and `sleep` mark the process `BLOCKED` and call
+  the scheduler explicitly. The keyboard IRQ and the timer wake the relevant
+  processes. Nothing busy-waits.
+- **`spawn` / `wait` / `exit`.** `spawn` creates a `RUNNABLE` child and returns
+  its pid. `exit` turns the caller into a `ZOMBIE` and wakes a waiting parent.
+  `wait` reaps a zombie child (freeing its stack and address space) and
+  returns its exit code; `wait(0, …)` polls without blocking.
 
 ## System calls
 
@@ -143,10 +170,8 @@ through the kernel.
 | 14 | `wait`    | `pid, int *code`         | pid 0 = poll, pid < 0 = any child; blocks |
 | 15 | `sleep`   | `ms`                     | sleeps via the scheduler, not a busy loop |
 
-`spawn` returns a pid and the child runs concurrently; `wait` reaps it. A
-timer-driven round-robin scheduler ([proc/proc.c](kernel/proc/proc.c)) switches
-processes at each trap return to user mode; the kernel itself is not preemptible,
-so blocking calls (`read`, `wait`, `sleep`) yield explicitly.
+See **Processes & scheduling** above for how `spawn`/`wait`/`exit`, blocking,
+and preemption fit together.
 
 ## Filesystem — SimpleFS (SFS1)
 
@@ -158,7 +183,8 @@ A deliberately tiny format on the volume at LBA 2048:
 - **blocks 9+** — file data; each file is one contiguous run with a fixed
   capacity chosen at creation.
 
-`fs/vfs.c` keeps a 16-entry open-file table over the single volume. Reads and
+`fs/vfs.c` keeps a 16-entry open-file table over the single volume; each
+process maps its own descriptors (`fd ≥ 3`) onto handles in it. Reads and
 writes go straight to the disk via the polled ATA PIO driver; directory and
 superblock changes are flushed back, so files created at runtime survive a
 reboot of the same image. `tools/mksfs.c` packs `fsroot/*` plus the built user
@@ -212,6 +238,8 @@ through `int 0x80` (`user/libc.c`).
 - [x] **Step 10 — Multitasking.** A timer-driven round-robin scheduler with
       context switching, per-process kernel stacks + fd tables, `spawn`/`wait`,
       background jobs, and blocking `read`/`wait`/`sleep` (no busy-waiting).
-- [ ] **Later.** `p_flags`-accurate segment permissions, a higher-half kernel,
-      demand paging / `sbrk`, subdirectories in the FS, and an x86_64 port.
+- [ ] **Later.** Output serialization (a tty layer — concurrent writers
+      currently interleave mid-line), scheduler priorities, `p_flags`-accurate
+      segment permissions, a higher-half kernel, demand paging / `sbrk`,
+      subdirectories in the FS, and an x86_64 port.
 
