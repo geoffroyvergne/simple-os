@@ -10,10 +10,9 @@
 #include "drivers/pit.h"
 #include "arch/x86/io.h"
 
-#define MAX_ARGV  16
-#define FD_BASE   3       /* user fds 0/1/2 are the console/keyboard */
+#define MAX_ARGV 16
 
-/* ---- user memory access (caller's address space is still current) ---- */
+/* ---- user memory access (caller's address space is current) ---- */
 
 static int urange(uint32_t addr, uint32_t n)
 {
@@ -38,7 +37,6 @@ static int ucopy_out(uint32_t uaddr, const void *src, uint32_t n)
     return 0;
 }
 
-/* Copy a NUL-terminated string in; returns length, or -1 if unmapped/too long. */
 static int ustr(char *dst, uint32_t uaddr, uint32_t max)
 {
     for (uint32_t i = 0; i < max; i++) {
@@ -52,24 +50,20 @@ static int ustr(char *dst, uint32_t uaddr, uint32_t max)
     return -1;
 }
 
-/* ---- individual calls ---- */
+/* ---- calls ---- */
 
 static int sys_write(int fd, uint32_t ubuf, uint32_t len)
 {
+    if (!urange(ubuf, len))
+        return -1;
     if (fd == 1 || fd == 2) {
-        if (!urange(ubuf, len))
-            return -1;
         const char *p = (const char *)ubuf;
         for (uint32_t i = 0; i < len; i++)
             kputchar(p[i]);
         return (int)len;
     }
-    if (fd >= FD_BASE) {
-        if (!urange(ubuf, len))
-            return -1;
-        return vfs_write(fd - FD_BASE, (const void *)ubuf, len);
-    }
-    return -1;
+    int vh = proc_fd_get(fd);
+    return vh < 0 ? -1 : vfs_write(vh, (const void *)ubuf, len);
 }
 
 static int sys_read(int fd, uint32_t ubuf, uint32_t len)
@@ -78,9 +72,8 @@ static int sys_read(int fd, uint32_t ubuf, uint32_t len)
         return -1;
     if (fd == 0)
         return keyboard_readline((char *)ubuf, len);
-    if (fd >= FD_BASE)
-        return vfs_read(fd - FD_BASE, (void *)ubuf, len);
-    return -1;
+    int vh = proc_fd_get(fd);
+    return vh < 0 ? -1 : vfs_read(vh, (void *)ubuf, len);
 }
 
 static int sys_open(uint32_t upath, int flags)
@@ -94,8 +87,13 @@ static int sys_open(uint32_t upath, int flags)
         if (vfs_stat(path, &st) < 0 && vfs_create(path, 64 * 1024) < 0)
             return -1;
     }
-    int fd = vfs_open(path);
-    return fd < 0 ? -1 : fd + FD_BASE;
+    int vh = vfs_open(path);
+    if (vh < 0)
+        return -1;
+    int fd = proc_fd_alloc(vh);
+    if (fd < 0)
+        vfs_close(vh);
+    return fd;
 }
 
 static int sys_readdir(int index, uint32_t uout)
@@ -159,7 +157,16 @@ static int sys_spawn(uint32_t upath, uint32_t uargv)
         kargv[0] = path;
         argc = 1;
     }
-    return proc_exec(path, argc, kargv);
+    return proc_spawn(path, argc, kargv);
+}
+
+static int sys_wait(int pid, uint32_t ucode)
+{
+    int code = 0;
+    int rp = proc_wait(pid, &code);
+    if (rp >= 0 && ucode)
+        ucopy_out(ucode, &code, 4);
+    return rp;
 }
 
 static int sys_sysinfo(uint32_t uout)
@@ -178,9 +185,11 @@ static int sys_sysinfo(uint32_t uout)
 
 void syscall_dispatch(struct registers *r)
 {
+    __asm__ volatile("sti");            /* syscalls run interruptible, not preemptible */
+
     switch (r->eax) {
     case SYS_exit:
-        user_exit((int)r->ebx);              /* does not return */
+        proc_exit((int)r->ebx);              /* does not return */
         break;
     case SYS_write:
         r->eax = (uint32_t)sys_write((int)r->ebx, r->ecx, r->edx);
@@ -192,20 +201,26 @@ void syscall_dispatch(struct registers *r)
         r->eax = (uint32_t)proc_pid();
         break;
     case SYS_yield:
+        proc_yield();
         r->eax = 0;
         break;
     case SYS_open:
         r->eax = (uint32_t)sys_open(r->ebx, (int)r->ecx);
         break;
-    case SYS_close:
-        if ((int)r->ebx >= FD_BASE)
-            vfs_close((int)r->ebx - FD_BASE);
+    case SYS_close: {
+        int vh = proc_fd_get((int)r->ebx);
+        if (vh >= 0) {
+            vfs_close(vh);
+            proc_fd_release((int)r->ebx);
+        }
         r->eax = 0;
         break;
-    case SYS_lseek:
-        r->eax = (int)r->ebx >= FD_BASE && vfs_seek((int)r->ebx - FD_BASE, r->ecx) == 0
-                     ? r->ecx : (uint32_t)-1;
+    }
+    case SYS_lseek: {
+        int vh = proc_fd_get((int)r->ebx);
+        r->eax = (vh >= 0 && vfs_seek(vh, r->ecx) == 0) ? r->ecx : (uint32_t)-1;
         break;
+    }
     case SYS_readdir:
         r->eax = (uint32_t)sys_readdir((int)r->ebx, r->ecx);
         break;
@@ -223,6 +238,13 @@ void syscall_dispatch(struct registers *r)
         break;
     case SYS_reboot:
         outb(0x64, 0xFE);
+        break;
+    case SYS_wait:
+        r->eax = (uint32_t)sys_wait((int)r->ebx, r->ecx);
+        break;
+    case SYS_sleep:
+        proc_sleep(r->ebx);
+        r->eax = 0;
         break;
     default:
         kprintf("syscall: unknown number %u\n", r->eax);

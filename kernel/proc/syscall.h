@@ -18,6 +18,8 @@
 #define SYS_unlink   11    /* (path) */
 #define SYS_sysinfo  12    /* (struct sys_info *) */
 #define SYS_reboot   13
+#define SYS_wait     14    /* (pid, int *code)  reaped pid, or -1; blocks */
+#define SYS_sleep    15    /* (ms) */
 
 #define O_RDONLY 0
 #define O_WRCREAT 1

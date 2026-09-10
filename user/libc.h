@@ -33,7 +33,9 @@ int  close(int fd);
 int  lseek(int fd, unsigned offset);
 int  readdir(int index, struct dirent *out);
 int  stat(const char *path, struct statbuf *out);
-int  spawn(const char *path, char **argv);
+int  spawn(const char *path, char **argv);     /* returns a pid, or < 0 */
+int  wait(int pid, int *code);                  /* pid <= 0 = any child; blocks */
+void sleep(unsigned ms);
 int  unlink(const char *path);
 int  sysinfo(struct sysinfo *out);
 void reboot(void) __attribute__((noreturn));

@@ -5,6 +5,7 @@
 #include "term/vga.h"
 #include "term/console.h"
 #include "proc/syscall.h"
+#include "proc/proc.h"
 
 static const char *const EXCEPTION_NAMES[32] = {
     "divide error", "debug", "NMI", "breakpoint",
@@ -53,25 +54,24 @@ void interrupt_dispatch(struct registers *r)
 {
     if (r->int_no == 0x80) {
         syscall_dispatch(r);
-        return;
-    }
-
-    if (r->int_no < 32) {
+    } else if (r->int_no < 32) {
         if (r->int_no == 14) {          /* page fault: CR2 holds the address */
             uint32_t cr2;
             __asm__ volatile("mov %%cr2, %0" : "=r"(cr2));
             kprintf("\nfaulting address (CR2) = %p\n", (void *)cr2);
         }
         panic(EXCEPTION_NAMES[r->int_no], r);
+    } else {
+        uint8_t irq = (uint8_t)(r->int_no - PIC_IRQ_BASE);
+        if (irq < 16 && irq_handlers[irq])
+            irq_handlers[irq](r);
+        pic_send_eoi(irq);
     }
 
-    uint8_t irq = (uint8_t)(r->int_no - PIC_IRQ_BASE);
-
-    /* Spurious IRQ7/IRQ15: no real interrupt, do not EOI the master for 15. */
-    if (irq < 16 && irq_handlers[irq])
-        irq_handlers[irq](r);
-
-    pic_send_eoi(irq);
+    /* Preempt only when returning to user mode: the kernel is not preemptible,
+     * but a process that used its whole slice gets switched out here. */
+    if ((r->cs & 3) == 3 && sched_take_resched())
+        schedule();
 }
 
 void interrupts_init(void)

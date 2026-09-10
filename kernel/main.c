@@ -27,7 +27,7 @@ void kmain(void)
     console_set_color(VGA_LCYAN, VGA_BLACK);
     kprintf("SimpleOS");
     console_set_color(VGA_LGRAY, VGA_BLACK);
-    kprintf("  --  step 9: user-mode shell + spawn\n\n");
+    kprintf("  --  step 10: preemptive multitasking\n\n");
 
     gdt_init();
     ok("GDT");
@@ -54,19 +54,16 @@ void kmain(void)
     }
 
     proc_init();
-    ok("process subsystem");
-
-    kprintf("\nstarting /sh ...\n\n");
+    ok("scheduler");
 
     char *argv[] = { "sh", 0 };
-    for (;;) {
-        int rc = proc_exec("sh", 1, argv);
-        if (rc < 0) {
-            console_set_color(VGA_LRED, VGA_BLACK);
-            kprintf("\nkmain: cannot start /sh (%d) -- halting\n", rc);
-            for (;;)
-                __asm__ volatile("hlt");
-        }
-        kprintf("\n/sh exited (%d), restarting\n\n", rc);
+    if (proc_spawn("sh", 1, argv) < 0) {
+        console_set_color(VGA_LRED, VGA_BLACK);
+        kprintf("\nkmain: cannot start /sh -- halting\n");
+        for (;;)
+            __asm__ volatile("hlt");
     }
+
+    kprintf("\n");
+    proc_run_idle("sh");           /* becomes the idle task; never returns */
 }

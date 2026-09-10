@@ -1,8 +1,10 @@
 #include "drivers/keyboard.h"
 #include "arch/x86/io.h"
 #include "arch/x86/interrupts.h"
+#include "arch/x86/irqflags.h"
 #include "arch/x86/pic.h"
 #include "lib/kprintf.h"
+#include "proc/proc.h"
 
 #define KBD_DATA   0x60
 #define KBD_STATUS 0x64
@@ -118,6 +120,7 @@ static void on_key(struct registers *r)
         if (!(st & 0x20))               /* skip bytes from the aux (mouse) port */
             process_scancode(data);
     }
+    sched_wake(WAIT_KBD);
 }
 
 void keyboard_init(void)
@@ -142,16 +145,17 @@ int keyboard_trygetchar(void)
 char keyboard_getchar(void)
 {
     for (;;) {
-        __asm__ volatile("cli");
+        uint32_t f = irq_save();
         if (rb_tail != rb_head) {
             uint8_t c = rb[rb_tail];
             rb_tail = (rb_tail + 1) % RB_SIZE;
-            __asm__ volatile("sti");
+            irq_restore(f);
             return (char)c;
         }
-        /* sti; hlt is atomic: no interrupt can slip in between, so a key that
-         * arrives right after the check still wakes us. */
-        __asm__ volatile("sti; hlt");
+        /* Nothing buffered: block until the keyboard IRQ wakes us. */
+        proc_block(WAIT_KBD);
+        irq_restore(f);
+        schedule();
     }
 }
 

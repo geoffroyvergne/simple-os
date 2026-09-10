@@ -14,6 +14,8 @@
 #define SYS_unlink   11
 #define SYS_sysinfo  12
 #define SYS_reboot   13
+#define SYS_wait     14
+#define SYS_sleep    15
 
 static int sc(int n, int a, int b, int c_)
 {
@@ -36,6 +38,8 @@ int  lseek(int fd, unsigned off)            { return sc(SYS_lseek, fd, (int)off,
 int  readdir(int i, struct dirent *o)       { return sc(SYS_readdir, i, (int)o, 0); }
 int  stat(const char *p, struct statbuf *o) { return sc(SYS_stat, (int)p, (int)o, 0); }
 int  spawn(const char *p, char **argv)      { return sc(SYS_spawn, (int)p, (int)argv, 0); }
+int  wait(int pid, int *code)               { return sc(SYS_wait, pid, (int)code, 0); }
+void sleep(unsigned ms)                     { sc(SYS_sleep, (int)ms, 0, 0); }
 int  unlink(const char *p)                  { return sc(SYS_unlink, (int)p, 0, 0); }
 int  sysinfo(struct sysinfo *o)             { return sc(SYS_sysinfo, (int)o, 0, 0); }
 

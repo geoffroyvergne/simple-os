@@ -1,18 +1,35 @@
 #pragma once
 #include <stdint.h>
 
-/* Processes run one at a time: a running process may spawn another, which
- * suspends the parent until the child exits (nested, synchronous exec). A
- * preemptive scheduler is a later step. */
+/* Preemptive round-robin multitasking. The kernel itself is not preemptible:
+ * a process is only switched out at a trap return to user mode, or when it
+ * voluntarily blocks (I/O, wait, sleep, yield). */
 
-void proc_init(void);
+/* wait channels */
+#define WAIT_NONE   0
+#define WAIT_KBD    1
+#define WAIT_SLEEP  2
+#define WAIT_CHILD  3
 
-/* Load and run an ELF from the filesystem. Returns the program's exit code,
- * or negative if it could not be started (-2 = not found / not an ELF). */
-int proc_exec(const char *path, int argc, char **argv);
+void proc_init(void);                    /* the boot thread becomes the idle task */
+void proc_run_idle(const char *respawn) __attribute__((noreturn));
 
-int proc_pid(void);
+int  proc_spawn(const char *path, int argc, char **argv);   /* pid, or < 0 */
+int  proc_wait(int pid, int *code);      /* pid reaped, or -1; blocks */
+void proc_exit(int code) __attribute__((noreturn));
+int  proc_pid(void);
+void proc_yield(void);
+void proc_sleep(uint32_t ms);
 
-/* From ring3.asm. */
-int  run_user(uint32_t entry, uint32_t user_esp, uint32_t cr3);
-void user_exit(int code) __attribute__((noreturn));
+/* Block the current process on a channel, then run the scheduler. */
+void proc_block(int chan);
+void sched_wake(int chan);               /* make every process on `chan` runnable */
+
+void schedule(void);
+void sched_on_tick(void);                /* from the timer IRQ */
+int  sched_take_resched(void);           /* read-and-clear the preempt flag */
+
+/* Per-process file descriptors (indices into the VFS open-file table). */
+int  proc_fd_alloc(int vfs_handle);
+int  proc_fd_get(int fd);
+void proc_fd_release(int fd);

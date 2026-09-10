@@ -2,6 +2,7 @@
 #include "arch/x86/io.h"
 #include "arch/x86/interrupts.h"
 #include "arch/x86/pic.h"
+#include "proc/proc.h"
 
 #define PIT_CH0   0x40
 #define PIT_CMD   0x43
@@ -14,6 +15,7 @@ static void on_tick(struct registers *r)
 {
     (void)r;
     ticks++;
+    sched_on_tick();
 }
 
 uint64_t pit_ticks(void)
