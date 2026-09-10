@@ -8,21 +8,133 @@
 #include "mm.h"
 #include "pmm.h"
 #include "kheap.h"
+#include "vfs.h"
+#include "sfs.h"
 
 #define LINE_MAX 256
 
 static void cmd_help(void)
 {
     kprintf("commands:\n");
-    kprintf("  help          this text\n");
-    kprintf("  echo <text>   print text\n");
-    kprintf("  clear         clear the screen\n");
-    kprintf("  ticks         PIT tick count since boot\n");
-    kprintf("  uptime        seconds since boot\n");
-    kprintf("  mem           physical / paging / heap summary\n");
-    kprintf("  e820          BIOS memory map\n");
-    kprintf("  memtest       exercise kmalloc/kfree\n");
-    kprintf("  reboot        reset via the 8042 controller\n");
+    kprintf("  help            this text\n");
+    kprintf("  echo <text>     print text\n");
+    kprintf("  clear           clear the screen\n");
+    kprintf("  uptime / ticks  time since boot\n");
+    kprintf("  mem / e820      memory summary / BIOS map\n");
+    kprintf("  memtest         exercise kmalloc/kfree\n");
+    kprintf("  ls              list files\n");
+    kprintf("  cat <file>      print a file\n");
+    kprintf("  hexdump <file>  hex + ASCII dump\n");
+    kprintf("  stat <file>     file size / capacity\n");
+    kprintf("  df              filesystem usage\n");
+    kprintf("  touch <file>    create an empty file\n");
+    kprintf("  write <file> <text>   append a line to a file\n");
+    kprintf("  rm <file>       delete a file\n");
+    kprintf("  reboot          reset via the 8042 controller\n");
+}
+
+static void cmd_ls(void)
+{
+    struct vfs_dirent d;
+    int n = 0;
+    for (int i = 0; vfs_readdir(i, &d) == 0; i++) {
+        kprintf("  %s", d.name);
+        for (int s = (int)strlen(d.name); s < 16; s++)
+            kputchar(' ');
+        kprintf("%u bytes\n", d.size);
+        n++;
+    }
+    if (n == 0)
+        kprintf("  (empty)\n");
+}
+
+static void cmd_cat(const char *name)
+{
+    int fd = vfs_open(name);
+    if (fd < 0) {
+        kprintf("cat: %s: not found\n", name);
+        return;
+    }
+    char buf[256];
+    int r;
+    while ((r = vfs_read(fd, buf, sizeof(buf))) > 0)
+        for (int i = 0; i < r; i++)
+            kputchar(buf[i]);
+    vfs_close(fd);
+}
+
+static void cmd_hexdump(const char *name)
+{
+    int fd = vfs_open(name);
+    if (fd < 0) {
+        kprintf("hexdump: %s: not found\n", name);
+        return;
+    }
+    uint8_t buf[16];
+    uint32_t off = 0;
+    int r;
+    while ((r = vfs_read(fd, buf, sizeof(buf))) > 0) {
+        kprintf("%08x  ", off);
+        for (int i = 0; i < 16; i++) {
+            if (i < r)
+                kprintf("%02x ", buf[i]);
+            else
+                kprintf("   ");
+        }
+        kprintf(" |");
+        for (int i = 0; i < r; i++)
+            kputchar(buf[i] >= 0x20 && buf[i] < 0x7F ? buf[i] : '.');
+        kprintf("|\n");
+        off += (uint32_t)r;
+    }
+    vfs_close(fd);
+}
+
+static void cmd_stat(const char *name)
+{
+    struct vfs_stat st;
+    if (vfs_stat(name, &st) < 0) {
+        kprintf("stat: %s: not found\n", name);
+        return;
+    }
+    kprintf("  %s: %u bytes, %u bytes capacity\n", name, st.size, st.capacity);
+}
+
+static void cmd_df(void)
+{
+    if (!vfs_mounted()) {
+        kprintf("no filesystem\n");
+        return;
+    }
+    uint32_t total, used, files;
+    sfs_statfs(&total, &used, &files);
+    kprintf("  SimpleFS: %u/%u blocks used (%u KiB / %u KiB), %u file(s)\n",
+            used, total, used / 2, total / 2, files);
+}
+
+static void cmd_write(char *name)
+{
+    char *text = name;
+    while (*text && *text != ' ')
+        text++;
+    if (*text == ' ')
+        *text++ = '\0';
+
+    if (vfs_stat(name, 0) < 0 && vfs_create(name, 4096) < 0) {
+        kprintf("write: cannot create %s\n", name);
+        return;
+    }
+    int fd = vfs_open(name);
+    if (fd < 0) {
+        kprintf("write: cannot open %s\n", name);
+        return;
+    }
+    struct vfs_stat st;
+    vfs_stat(name, &st);
+    vfs_seek(fd, st.size);
+    vfs_write(fd, text, (uint32_t)strlen(text));
+    vfs_write(fd, "\n", 1);
+    vfs_close(fd);
 }
 
 static const char *e820_type(uint32_t t)
@@ -110,6 +222,24 @@ static void execute(char *line)
         cmd_e820();
     } else if (strcmp(line, "memtest") == 0) {
         cmd_memtest();
+    } else if (strcmp(line, "ls") == 0) {
+        cmd_ls();
+    } else if (strcmp(line, "cat") == 0 && has_arg) {
+        cmd_cat(arg);
+    } else if (strcmp(line, "hexdump") == 0 && has_arg) {
+        cmd_hexdump(arg);
+    } else if (strcmp(line, "stat") == 0 && has_arg) {
+        cmd_stat(arg);
+    } else if (strcmp(line, "df") == 0) {
+        cmd_df();
+    } else if (strcmp(line, "touch") == 0 && has_arg) {
+        if (vfs_create(arg, 4096) < 0)
+            kprintf("touch: cannot create %s\n", arg);
+    } else if (strcmp(line, "write") == 0 && has_arg) {
+        cmd_write(arg);
+    } else if (strcmp(line, "rm") == 0 && has_arg) {
+        if (vfs_unlink(arg) < 0)
+            kprintf("rm: %s: not found\n", arg);
     } else if (strcmp(line, "reboot") == 0) {
         kprintf("rebooting...\n");
         pit_sleep_ms(200);

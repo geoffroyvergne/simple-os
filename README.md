@@ -66,7 +66,7 @@ installs a flat GDT, enters 32-bit protected mode, and jumps to the kernel.
 - [x] **Step 4 — Keyboard.** PS/2 keyboard driver, input line editing.
 - [x] **Step 5 — Memory management.** Physical frame allocator (parse memory
       map), paging, `kmalloc`.
-- [ ] **Step 6 — Storage + FS.** ATA PIO disk driver, a simple file system
+- [x] **Step 6 — Storage + FS.** ATA PIO disk driver, a simple file system
       (custom read-only first, then read/write), VFS layer.
 - [ ] **Step 7 — User mode.** Ring 3, TSS, syscalls (`int 0x80`).
 - [ ] **Step 8 — ELF loader + processes.** Load static ELF executables from the

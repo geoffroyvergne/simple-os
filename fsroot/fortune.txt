@@ -1,0 +1,3 @@
+"Simplicity is prerequisite for reliability."   -- Edsger W. Dijkstra
+"Do one thing and do it well."                  -- Unix philosophy
+"Any sufficiently advanced bug is indistinguishable from a feature."

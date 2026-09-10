@@ -6,6 +6,8 @@
 #include "pit.h"
 #include "keyboard.h"
 #include "mm.h"
+#include "ata.h"
+#include "vfs.h"
 #include "shell.h"
 
 static void ok(const char *what)
@@ -24,7 +26,7 @@ void kmain(void)
     console_set_color(VGA_LCYAN, VGA_BLACK);
     kprintf("SimpleOS");
     console_set_color(VGA_LGRAY, VGA_BLACK);
-    kprintf("  --  step 5: memory management\n\n");
+    kprintf("  --  step 6: storage + filesystem\n\n");
 
     gdt_init();
     ok("GDT");
@@ -41,6 +43,12 @@ void kmain(void)
 
     __asm__ volatile("sti");
     ok("interrupts enabled");
+
+    if (ata_init() == 0) {
+        vfs_init();
+        if (vfs_mounted())
+            ok("SimpleFS mounted");
+    }
 
     kprintf("\n");
     mm_report();

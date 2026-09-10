@@ -1,0 +1,8 @@
+*** Welcome to SimpleOS ***
+
+  bootloader  : custom 2-stage BIOS (assembly)
+  kernel      : freestanding C, i686 protected mode
+  memory      : E820 map, bitmap PMM, 4 KiB paging, kmalloc
+  storage     : ATA PIO + SimpleFS
+
+Next milestone: load and run ELF binaries.

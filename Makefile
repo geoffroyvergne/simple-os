@@ -21,6 +21,14 @@ KERNEL_OBJ := $(patsubst kernel/%.c,$(BUILD)/%.o,$(KERNEL_C)) \
 
 IMG := $(BUILD)/os.img
 
+# ---- filesystem ---------------------------------------------------------
+HOSTCC     ?= cc
+FS_IMG     := $(BUILD)/fs.img
+FS_SIZE    := 8388608           # 8 MiB SimpleFS volume
+FS_LBA     := 2048             # must match SFS_DISK_LBA in kernel/sfs.h
+FS_FILES   := $(wildcard fsroot/*)
+IMG_SECTORS := 32768           # 16 MiB disk image
+
 .PHONY: all run run-serial debug clean dirs
 
 all: $(IMG)
@@ -49,14 +57,22 @@ $(BUILD)/kernel.elf: $(KERNEL_OBJ) kernel/linker.ld
 
 $(BUILD)/kernel.bin: $(BUILD)/kernel.elf
 	$(OBJCOPY) -O binary $< $@
-	@test $$(stat -f%z $@) -le 65536 || { echo "kernel.bin exceeds 128 sectors"; exit 1; }
+	@test $$(stat -f%z $@) -le 131072 || { echo "kernel.bin exceeds 256 sectors"; exit 1; }
+
+# ---- filesystem image -------------------------------------------------
+$(BUILD)/mksfs: tools/mksfs.c | dirs
+	$(HOSTCC) -O2 -Wall -Wextra -o $@ $<
+
+$(FS_IMG): $(BUILD)/mksfs $(FS_FILES)
+	$(BUILD)/mksfs $@ $(FS_SIZE) $(FS_FILES)
 
 # ---- disk image --------------------------------------------------------
-$(IMG): $(BUILD)/stage1.bin $(BUILD)/stage2.bin $(BUILD)/kernel.bin
-	dd if=/dev/zero of=$@ bs=512 count=2880 status=none
+$(IMG): $(BUILD)/stage1.bin $(BUILD)/stage2.bin $(BUILD)/kernel.bin $(FS_IMG)
+	dd if=/dev/zero of=$@ bs=512 count=$(IMG_SECTORS) status=none
 	dd if=$(BUILD)/stage1.bin of=$@ conv=notrunc bs=512 seek=0 status=none
 	dd if=$(BUILD)/stage2.bin of=$@ conv=notrunc bs=512 seek=1 status=none
 	dd if=$(BUILD)/kernel.bin  of=$@ conv=notrunc bs=512 seek=9 status=none
+	dd if=$(FS_IMG)            of=$@ conv=notrunc bs=512 seek=$(FS_LBA) status=none
 	@echo "built $@"
 
 # ---- run / debug -----------------------------------------------------
