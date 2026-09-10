@@ -63,7 +63,7 @@ installs a flat GDT, enters 32-bit protected mode, and jumps to the kernel.
       cursor, colors, `kprintf`.
 - [x] **Step 3 — Interrupts.** GDT reload from the kernel, IDT, PIC remap,
       exception handlers, PIT timer.
-- [ ] **Step 4 — Keyboard.** PS/2 keyboard driver, input line editing.
+- [x] **Step 4 — Keyboard.** PS/2 keyboard driver, input line editing.
 - [ ] **Step 5 — Memory management.** Physical frame allocator (parse memory
       map), paging, `kmalloc`.
 - [ ] **Step 6 — Storage + FS.** ATA PIO disk driver, a simple file system
