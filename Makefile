@@ -21,6 +21,15 @@ KERNEL_OBJ := $(patsubst kernel/%.c,$(BUILD)/%.o,$(KERNEL_C)) \
 
 IMG := $(BUILD)/os.img
 
+# ---- user programs ----------------------------------------------------
+USER_CFLAGS := --target=i686-elf -march=i686 -std=gnu11 -ffreestanding -nostdlib \
+               -O2 -Wall -Wextra -fno-pic -fno-pie -fno-stack-protector \
+               -fno-builtin -fno-asynchronous-unwind-tables -mno-sse -mno-mmx -mno-80387 \
+               -Iuser
+USER_LDFLAGS := -m elf_i386 -T user/user.ld -nostdlib
+USER_SRC   := $(wildcard user/*.c)
+USER_PROGS := $(patsubst user/%.c,$(BUILD)/user/%,$(filter-out user/libc.c,$(USER_SRC)))
+
 # ---- filesystem ---------------------------------------------------------
 HOSTCC     ?= cc
 FS_IMG     := $(BUILD)/fs.img
@@ -59,12 +68,25 @@ $(BUILD)/kernel.bin: $(BUILD)/kernel.elf
 	$(OBJCOPY) -O binary $< $@
 	@test $$(stat -f%z $@) -le 131072 || { echo "kernel.bin exceeds 256 sectors"; exit 1; }
 
+# ---- user programs --------------------------------------------------
+$(BUILD)/user/crt0.o: user/crt0.asm | dirs
+	@mkdir -p $(BUILD)/user
+	$(NASM) -f elf32 $< -o $@
+
+$(BUILD)/user/libc.o: user/libc.c user/libc.h | dirs
+	@mkdir -p $(BUILD)/user
+	$(CC) $(USER_CFLAGS) -c $< -o $@
+
+$(BUILD)/user/%: user/%.c user/libc.h $(BUILD)/user/crt0.o $(BUILD)/user/libc.o user/user.ld
+	$(CC) $(USER_CFLAGS) -c $< -o $(BUILD)/user/$*.o
+	$(LD) $(USER_LDFLAGS) -o $@ $(BUILD)/user/crt0.o $(BUILD)/user/$*.o $(BUILD)/user/libc.o
+
 # ---- filesystem image -------------------------------------------------
 $(BUILD)/mksfs: tools/mksfs.c | dirs
 	$(HOSTCC) -O2 -Wall -Wextra -o $@ $<
 
-$(FS_IMG): $(BUILD)/mksfs $(FS_FILES)
-	$(BUILD)/mksfs $@ $(FS_SIZE) $(FS_FILES)
+$(FS_IMG): $(BUILD)/mksfs $(FS_FILES) $(USER_PROGS)
+	$(BUILD)/mksfs $@ $(FS_SIZE) $(FS_FILES) $(USER_PROGS)
 
 # ---- disk image --------------------------------------------------------
 $(IMG): $(BUILD)/stage1.bin $(BUILD)/stage2.bin $(BUILD)/kernel.bin $(FS_IMG)

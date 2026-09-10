@@ -10,8 +10,9 @@
  * come later. */
 void paging_init(void);
 
-/* Grant CPL 3 access to an existing identity-mapped range (sets PTE_USER on
- * the covering pages and their page-directory entries). */
-void paging_set_user(uint32_t vaddr, uint32_t size);
-
 uint32_t paging_mapped_bytes(void);
+
+/* The single kernel page directory (identity map of low RAM). Every process
+ * address space copies its PDEs so kernel mappings are always present. */
+uint32_t *paging_kernel_dir(void);
+uint32_t  paging_kernel_dir_phys(void);

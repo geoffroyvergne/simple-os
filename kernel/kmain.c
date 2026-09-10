@@ -9,7 +9,7 @@
 #include "mm.h"
 #include "ata.h"
 #include "vfs.h"
-#include "usermode.h"
+#include "proc.h"
 #include "shell.h"
 
 static void ok(const char *what)
@@ -28,14 +28,14 @@ void kmain(void)
     console_set_color(VGA_LCYAN, VGA_BLACK);
     kprintf("SimpleOS");
     console_set_color(VGA_LGRAY, VGA_BLACK);
-    kprintf("  --  step 7: user mode + syscalls\n\n");
+    kprintf("  --  step 8: ELF loader + processes\n\n");
 
     gdt_init();
     ok("GDT");
     tss_init();
-    ok("TSS loaded");
+    ok("TSS");
     interrupts_init();
-    ok("IDT + PIC (int 0x80 gate, DPL 3)");
+    ok("IDT + PIC + syscall gate");
     pit_init(PIT_HZ);
     ok("PIT 100 Hz");
 
@@ -54,8 +54,8 @@ void kmain(void)
             ok("SimpleFS mounted");
     }
 
-    kprintf("\n");
-    usermode_demo();
+    proc_init();
+    ok("process subsystem");
 
     kprintf("\n");
     shell_run();

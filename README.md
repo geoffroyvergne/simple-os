@@ -69,7 +69,7 @@ installs a flat GDT, enters 32-bit protected mode, and jumps to the kernel.
 - [x] **Step 6 — Storage + FS.** ATA PIO disk driver, a simple file system
       (custom read-only first, then read/write), VFS layer.
 - [x] **Step 7 — User mode.** Ring 3, TSS, syscalls (`int 0x80`).
-- [ ] **Step 8 — ELF loader + processes.** Load static ELF executables from the
+- [x] **Step 8 — ELF loader + processes.** Load static ELF executables from the
       FS into a user address space, `exec`, basic scheduler.
 - [ ] **Step 9 — Shell.** A real terminal program running in user mode with
       built-in commands and the ability to launch ELF binaries.

@@ -41,24 +41,10 @@ void paging_init(void)
             mapped_frames / 256, tables);
 }
 
-void paging_set_user(uint32_t vaddr, uint32_t size)
-{
-    uint32_t start = vaddr & ~0xFFFu;
-    uint32_t end = (vaddr + size + 0xFFFu) & ~0xFFFu;
-
-    for (uint32_t a = start; a != end; a += PAGE_SIZE) {
-        uint32_t pd = a >> 22;
-        uint32_t pt = (a >> 12) & 0x3FF;
-        if (!(page_directory[pd] & PTE_PRESENT))
-            continue;
-        uint32_t *table = (uint32_t *)(page_directory[pd] & ~0xFFFu);
-        table[pt] |= PTE_USER;
-        page_directory[pd] |= PTE_USER;
-        __asm__ volatile("invlpg (%0)" : : "r"(a) : "memory");
-    }
-}
-
 uint32_t paging_mapped_bytes(void)
 {
     return mapped_frames * PAGE_SIZE;
 }
+
+uint32_t *paging_kernel_dir(void)      { return page_directory; }
+uint32_t  paging_kernel_dir_phys(void) { return (uint32_t)page_directory; }

@@ -10,6 +10,7 @@
 #include "kheap.h"
 #include "vfs.h"
 #include "sfs.h"
+#include "proc.h"
 
 #define LINE_MAX 256
 
@@ -31,6 +32,7 @@ static void cmd_help(void)
     kprintf("  write <file> <text>   append a line to a file\n");
     kprintf("  rm <file>       delete a file\n");
     kprintf("  reboot          reset via the 8042 controller\n");
+    kprintf("  <name> [args]   run an ELF program from the filesystem\n");
 }
 
 static void cmd_ls(void)
@@ -188,6 +190,38 @@ static void cmd_memtest(void)
             (uint32_t)used / 1024, (uint32_t)big / 1024);
 }
 
+/* Run `name` as an ELF program, splitting `rest` into argv[1..]. argv[0] is
+ * the program name. */
+static void run_program(const char *name, char *rest)
+{
+    char *argv[16];
+    int argc = 0;
+    argv[argc++] = (char *)name;
+
+    if (rest) {
+        char *p = rest;
+        while (*p && argc < 16) {
+            while (*p == ' ')
+                *p++ = '\0';
+            if (!*p)
+                break;
+            argv[argc++] = p;
+            while (*p && *p != ' ')
+                p++;
+        }
+    }
+
+    if (vfs_stat(name, 0) < 0) {
+        kprintf("%s: command not found\n", name);
+        return;
+    }
+    int rc = proc_exec(name, argc, argv);
+    if (rc < 0)
+        kprintf("%s: not an executable\n", name);
+    else if (rc != 0)
+        kprintf("[exit %d]\n", rc);
+}
+
 static void execute(char *line)
 {
     while (*line == ' ')
@@ -245,7 +279,7 @@ static void execute(char *line)
         pit_sleep_ms(200);
         outb(0x64, 0xFE);
     } else {
-        kprintf("unknown command: %s\n", line);
+        run_program(line, has_arg ? arg : 0);
     }
 }
 

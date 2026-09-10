@@ -21,14 +21,6 @@ SECTIONS
     .rodata : ALIGN(16) { *(.rodata .rodata.*) }
     .data   : ALIGN(16) { *(.data .data.*) }
 
-    . = ALIGN(4K);
-    .user : {
-        __user_start = .;
-        KEEP(*(.user))
-        . = ALIGN(4K);
-        __user_end = .;
-    }
-
     .bss : ALIGN(16)
     {
         __bss_start = .;
