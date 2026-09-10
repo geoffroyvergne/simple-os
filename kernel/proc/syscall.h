@@ -1,5 +1,5 @@
 #pragma once
-#include "interrupts.h"
+#include "arch/x86/interrupts.h"
 
 /* Syscall ABI: eax = number, ebx/ecx/edx = args, result in eax.
  * Invoked from ring 3 with `int 0x80`. */

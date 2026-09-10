@@ -1,7 +1,7 @@
-#include "paging.h"
-#include "pmm.h"
-#include "string.h"
-#include "kprintf.h"
+#include "arch/x86/paging.h"
+#include "mm/pmm.h"
+#include "lib/string.h"
+#include "lib/kprintf.h"
 
 #define PTE_COUNT 1024
 #define MAX_MAP_FRAMES (256u * 1024)     /* 1 GiB / 4 KiB */

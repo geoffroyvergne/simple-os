@@ -1,8 +1,8 @@
-#include "syscall.h"
-#include "kprintf.h"
-#include "keyboard.h"
-#include "proc.h"
-#include "vmm.h"
+#include "proc/syscall.h"
+#include "lib/kprintf.h"
+#include "drivers/keyboard.h"
+#include "proc/proc.h"
+#include "mm/vmm.h"
 
 /* User pointers now belong to a separate (but currently co-mapped) address
  * space. Bounds-check them against the user region; full page-walk validation

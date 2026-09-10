@@ -1,4 +1,4 @@
-#include "string.h"
+#include "lib/string.h"
 #include <stdint.h>
 
 /* Freestanding implementations. The compiler may still emit calls to memset/

@@ -1,4 +1,4 @@
-#include "gdt.h"
+#include "arch/x86/gdt.h"
 
 /* A kernel-owned flat GDT: null, ring-0 code/data, ring-3 code/data, and a TSS
  * slot filled in later by tss_init(). */

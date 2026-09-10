@@ -1,8 +1,8 @@
-#include "mm.h"
-#include "pmm.h"
-#include "paging.h"
-#include "kheap.h"
-#include "kprintf.h"
+#include "mm/mm.h"
+#include "mm/pmm.h"
+#include "arch/x86/paging.h"
+#include "mm/kheap.h"
+#include "lib/kprintf.h"
 
 static const struct bootinfo *bi;
 

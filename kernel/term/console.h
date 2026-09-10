@@ -1,6 +1,6 @@
 #pragma once
 #include <stdint.h>
-#include "vga.h"
+#include "term/vga.h"
 
 /* 80x25 VGA text-mode terminal: tracks a cursor, scrolls, updates the
  * hardware cursor, and interprets \n \r \t \b. */

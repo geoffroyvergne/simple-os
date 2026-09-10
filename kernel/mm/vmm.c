@@ -1,7 +1,7 @@
-#include "vmm.h"
-#include "pmm.h"
-#include "paging.h"
-#include "string.h"
+#include "mm/vmm.h"
+#include "mm/pmm.h"
+#include "arch/x86/paging.h"
+#include "lib/string.h"
 
 #define P   PTE_PRESENT
 #define RW  PTE_WRITE

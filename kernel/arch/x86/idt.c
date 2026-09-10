@@ -1,6 +1,6 @@
-#include "idt.h"
-#include "gdt.h"
-#include "string.h"
+#include "arch/x86/idt.h"
+#include "arch/x86/gdt.h"
+#include "lib/string.h"
 
 struct idt_entry {
     uint16_t offset_low;

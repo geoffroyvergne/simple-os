@@ -1,8 +1,8 @@
-#include "keyboard.h"
-#include "io.h"
-#include "interrupts.h"
-#include "pic.h"
-#include "kprintf.h"
+#include "drivers/keyboard.h"
+#include "arch/x86/io.h"
+#include "arch/x86/interrupts.h"
+#include "arch/x86/pic.h"
+#include "lib/kprintf.h"
 
 #define KBD_DATA   0x60
 #define KBD_STATUS 0x64

@@ -1,7 +1,7 @@
 #pragma once
 #include <stdint.h>
 #include <stddef.h>
-#include "bootinfo.h"
+#include "arch/x86/bootinfo.h"
 
 #define PAGE_SIZE 4096u
 

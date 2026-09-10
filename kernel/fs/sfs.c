@@ -1,8 +1,8 @@
-#include "sfs.h"
-#include "ata.h"
-#include "kheap.h"
-#include "string.h"
-#include "kprintf.h"
+#include "fs/sfs.h"
+#include "drivers/ata.h"
+#include "mm/kheap.h"
+#include "lib/string.h"
+#include "lib/kprintf.h"
 
 static struct sfs_super super;
 static struct sfs_dirent *dir;          /* dir_blocks * 512 bytes, from kmalloc */

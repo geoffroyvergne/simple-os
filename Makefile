@@ -11,13 +11,14 @@ CFLAGS := --target=i686-elf -march=i686 -std=gnu11 -ffreestanding -nostdlib \
           -mno-sse -mno-mmx -mno-80387 \
           -Ikernel
 
-LDFLAGS := -m elf_i386 -T kernel/linker.ld -nostdlib --gc-sections
+LINKER := kernel/arch/x86/linker.ld
+LDFLAGS := -m elf_i386 -T $(LINKER) -nostdlib --gc-sections
 
 # ---- sources -------------------------------------------------------------
-KERNEL_C   := $(wildcard kernel/*.c)
-KERNEL_ASM := $(wildcard kernel/*.asm)
-KERNEL_OBJ := $(patsubst kernel/%.c,$(BUILD)/%.o,$(KERNEL_C)) \
-              $(patsubst kernel/%.asm,$(BUILD)/%.o,$(KERNEL_ASM))
+KERNEL_C   := $(shell find kernel -name '*.c')
+KERNEL_ASM := $(shell find kernel -name '*.asm')
+KERNEL_OBJ := $(patsubst kernel/%.c,$(BUILD)/kernel/%.o,$(KERNEL_C)) \
+              $(patsubst kernel/%.asm,$(BUILD)/kernel/%.o,$(KERNEL_ASM))
 
 IMG := $(BUILD)/os.img
 
@@ -34,7 +35,7 @@ USER_PROGS := $(patsubst user/%.c,$(BUILD)/user/%,$(filter-out user/libc.c,$(USE
 HOSTCC     ?= cc
 FS_IMG     := $(BUILD)/fs.img
 FS_SIZE    := 8388608           # 8 MiB SimpleFS volume
-FS_LBA     := 2048             # must match SFS_DISK_LBA in kernel/sfs.h
+FS_LBA     := 2048             # must match SFS_DISK_LBA in kernel/fs/sfs.h
 FS_FILES   := $(wildcard fsroot/*)
 IMG_SECTORS := 32768           # 16 MiB disk image
 
@@ -55,13 +56,15 @@ $(BUILD)/stage2.bin: boot/stage2.asm | dirs
 	@test $$(stat -f%z $@) -le 4096 || { echo "stage2.bin exceeds 8 sectors"; exit 1; }
 
 # ---- kernel -------------------------------------------------------------
-$(BUILD)/%.o: kernel/%.asm | dirs
+$(BUILD)/kernel/%.o: kernel/%.asm | dirs
+	@mkdir -p $(dir $@)
 	$(NASM) -f elf32 $< -o $@
 
-$(BUILD)/%.o: kernel/%.c | dirs
+$(BUILD)/kernel/%.o: kernel/%.c | dirs
+	@mkdir -p $(dir $@)
 	$(CC) $(CFLAGS) -c $< -o $@
 
-$(BUILD)/kernel.elf: $(KERNEL_OBJ) kernel/linker.ld
+$(BUILD)/kernel.elf: $(KERNEL_OBJ) $(LINKER)
 	$(LD) $(LDFLAGS) -o $@ $(KERNEL_OBJ)
 
 $(BUILD)/kernel.bin: $(BUILD)/kernel.elf

@@ -1,6 +1,6 @@
-#include "tss.h"
-#include "gdt.h"
-#include "string.h"
+#include "arch/x86/tss.h"
+#include "arch/x86/gdt.h"
+#include "lib/string.h"
 
 struct tss_entry {
     uint32_t prev_tss;

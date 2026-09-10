@@ -1,6 +1,6 @@
-#include "kprintf.h"
-#include "console.h"
-#include "serial.h"
+#include "lib/kprintf.h"
+#include "term/console.h"
+#include "drivers/serial.h"
 #include <stdint.h>
 #include <stdbool.h>
 

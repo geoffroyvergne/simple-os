@@ -1,10 +1,10 @@
-#include "interrupts.h"
-#include "idt.h"
-#include "pic.h"
-#include "kprintf.h"
-#include "vga.h"
-#include "console.h"
-#include "syscall.h"
+#include "arch/x86/interrupts.h"
+#include "arch/x86/idt.h"
+#include "arch/x86/pic.h"
+#include "lib/kprintf.h"
+#include "term/vga.h"
+#include "term/console.h"
+#include "proc/syscall.h"
 
 static const char *const EXCEPTION_NAMES[32] = {
     "divide error", "debug", "NMI", "breakpoint",

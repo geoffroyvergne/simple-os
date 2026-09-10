@@ -1,6 +1,6 @@
-#include "pmm.h"
-#include "string.h"
-#include "kprintf.h"
+#include "mm/pmm.h"
+#include "lib/string.h"
+#include "lib/kprintf.h"
 
 /* Bitmap physical frame allocator. 1 bit per 4 KiB frame, 1 = used. The bitmap
  * itself is placed immediately after the kernel image (still in low memory,

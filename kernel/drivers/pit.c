@@ -1,7 +1,7 @@
-#include "pit.h"
-#include "io.h"
-#include "interrupts.h"
-#include "pic.h"
+#include "drivers/pit.h"
+#include "arch/x86/io.h"
+#include "arch/x86/interrupts.h"
+#include "arch/x86/pic.h"
 
 #define PIT_CH0   0x40
 #define PIT_CMD   0x43

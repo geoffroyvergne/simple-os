@@ -1,6 +1,6 @@
-#include "ata.h"
-#include "io.h"
-#include "kprintf.h"
+#include "drivers/ata.h"
+#include "arch/x86/io.h"
+#include "lib/kprintf.h"
 
 #define IO   0x1F0            /* primary bus I/O base */
 #define CTRL 0x3F6            /* primary bus control */

@@ -1,6 +1,6 @@
-#include "console.h"
-#include "string.h"
-#include "io.h"
+#include "term/console.h"
+#include "lib/string.h"
+#include "arch/x86/io.h"
 
 #define COLS 80
 #define ROWS 25

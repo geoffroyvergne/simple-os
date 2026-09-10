@@ -1,6 +1,6 @@
-#include "vfs.h"
-#include "sfs.h"
-#include "string.h"
+#include "fs/vfs.h"
+#include "fs/sfs.h"
+#include "lib/string.h"
 
 /* Thin layer over the single SFS volume: an open-file table and path handling.
  * Generalises to real mounts once there is more than one filesystem. */

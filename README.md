@@ -52,8 +52,33 @@ i386-elf-gdb build/kernel.elf -ex 'target remote :1234' -ex 'break kmain' -ex co
 | 9 ..                   | Kernel (flat binary)           |
 
 Stage 1 (loaded by the BIOS at `0x7C00`) reads Stage 2 to `0x7E00` and jumps to
-it in 16-bit real mode. Stage 2 loads the kernel to `0x10000`, enables A20,
-installs a flat GDT, enters 32-bit protected mode, and jumps to the kernel.
+it in 16-bit real mode. Stage 2 collects the E820 memory map, loads the kernel
+to `0x10000`, enables A20, installs a flat GDT, enters 32-bit protected mode,
+and jumps to the kernel. A SimpleFS volume is placed at LBA 2048.
+
+## Source layout
+
+```
+boot/            stage 1 + stage 2 bootloader (NASM)
+kernel/
+  main.c           entry point (kmain)
+  shell.c          in-kernel shell / command dispatch
+  arch/x86/        CPU + platform: GDT, IDT, ISRs, TSS, PIC, paging,
+                   ring-3 switch, port I/O, boot handoff, linker script
+  mm/              physical frame allocator, paging setup, kmalloc, per-
+                   process address spaces (vmm), the mm_init orchestrator
+  drivers/         serial (COM1), PS/2 keyboard, ATA PIO disk, PIT timer
+  fs/              VFS layer + SimpleFS (SFS1) implementation
+  proc/            ELF loader, process/exec, syscall dispatch
+  term/            VGA text console (scrolling terminal)
+  lib/             freestanding string.h + kprintf
+user/            freestanding libc, crt0, and user programs (hello, echo, cat)
+tools/           mksfs -- host tool that builds the SimpleFS image
+fsroot/          plain files packed into the FS image alongside user programs
+```
+
+Kernel headers are included path-qualified from `kernel/`, e.g.
+`#include "mm/pmm.h"`. Object files mirror the source tree under `build/kernel/`.
 
 ## Roadmap
 

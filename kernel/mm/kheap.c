@@ -1,8 +1,8 @@
-#include "kheap.h"
-#include "pmm.h"
-#include "string.h"
-#include "kprintf.h"
-#include "interrupts.h"
+#include "mm/kheap.h"
+#include "mm/pmm.h"
+#include "lib/string.h"
+#include "lib/kprintf.h"
+#include "arch/x86/interrupts.h"
 
 /* Implicit free-list heap over a fixed, physically-contiguous region taken from
  * the PMM at init. RAM is identity-mapped, so contiguous physical == contiguous

@@ -1,10 +1,10 @@
-#include "elf.h"
-#include "vfs.h"
-#include "vmm.h"
-#include "pmm.h"
-#include "kheap.h"
-#include "string.h"
-#include "kprintf.h"
+#include "proc/elf.h"
+#include "fs/vfs.h"
+#include "mm/vmm.h"
+#include "mm/pmm.h"
+#include "mm/kheap.h"
+#include "lib/string.h"
+#include "lib/kprintf.h"
 
 #define MAX_IMAGE (1u << 20)     /* 1 MiB cap on an executable */
 

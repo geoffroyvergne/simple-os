@@ -1,11 +1,11 @@
-#include "proc.h"
-#include "vmm.h"
-#include "elf.h"
-#include "pmm.h"
-#include "kheap.h"
-#include "string.h"
-#include "kprintf.h"
-#include "tss.h"
+#include "proc/proc.h"
+#include "mm/vmm.h"
+#include "proc/elf.h"
+#include "mm/pmm.h"
+#include "mm/kheap.h"
+#include "lib/string.h"
+#include "lib/kprintf.h"
+#include "arch/x86/tss.h"
 
 #define KSTACK_SIZE 0x4000       /* 16 KiB per-process kernel stack */
 #define MAX_ARGV    16
