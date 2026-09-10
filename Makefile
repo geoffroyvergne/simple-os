@@ -5,8 +5,9 @@ BUILD := build
 # ---- flags -----------------------------------------------------------------
 CFLAGS := --target=i686-elf -march=i686 -std=gnu11 -ffreestanding -nostdlib \
           -O2 -g -Wall -Wextra -Wshadow -Wpointer-arith \
-          -fno-pic -fno-pie -fno-stack-protector \
+          -fno-pic -fno-pie -fno-stack-protector -fno-builtin \
           -fno-asynchronous-unwind-tables -fno-unwind-tables \
+          -ffunction-sections -fdata-sections \
           -mno-sse -mno-mmx -mno-80387 \
           -Ikernel
 

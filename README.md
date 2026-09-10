@@ -59,7 +59,7 @@ installs a flat GDT, enters 32-bit protected mode, and jumps to the kernel.
 
 - [x] **Step 1 — Boot to a screen.** Custom bootloader, protected-mode entry,
       kernel prints to VGA text mode and COM1.
-- [ ] **Step 2 — Terminal output.** Real `printf`-style console: scrolling,
+- [x] **Step 2 — Terminal output.** Real `printf`-style console: scrolling,
       cursor, colors, `kprintf`.
 - [ ] **Step 3 — Interrupts.** GDT reload from the kernel, IDT, PIC remap,
       exception handlers, PIT timer.
