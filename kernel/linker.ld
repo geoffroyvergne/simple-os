@@ -29,6 +29,7 @@ SECTIONS
         __bss_end = .;
     }
 
+    . = ALIGN(4K);
     __kernel_end = .;
 
     /DISCARD/ : { *(.comment) *(.note .note.*) *(.eh_frame) *(.eh_frame_hdr) }

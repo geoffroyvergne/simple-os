@@ -51,8 +51,12 @@ void panic(const char *msg, struct registers *r)
 void interrupt_dispatch(struct registers *r)
 {
     if (r->int_no < 32) {
-        const char *name = EXCEPTION_NAMES[r->int_no];
-        panic(name, r);
+        if (r->int_no == 14) {          /* page fault: CR2 holds the address */
+            uint32_t cr2;
+            __asm__ volatile("mov %%cr2, %0" : "=r"(cr2));
+            kprintf("\nfaulting address (CR2) = %p\n", (void *)cr2);
+        }
+        panic(EXCEPTION_NAMES[r->int_no], r);
     }
 
     uint8_t irq = (uint8_t)(r->int_no - PIC_IRQ_BASE);
