@@ -1,8 +1,7 @@
 #include "gdt.h"
 
-/* A kernel-owned flat GDT. The bootloader installed a temporary one; from here
- * the kernel controls segmentation. User-mode segments are defined now so the
- * selector layout is stable; the TSS arrives in the user-mode step. */
+/* A kernel-owned flat GDT: null, ring-0 code/data, ring-3 code/data, and a TSS
+ * slot filled in later by tss_init(). */
 
 struct gdt_entry {
     uint16_t limit_low;
@@ -18,7 +17,7 @@ struct gdt_ptr {
     uint32_t base;
 } __attribute__((packed));
 
-static struct gdt_entry gdt[5];
+static struct gdt_entry gdt[6];
 static struct gdt_ptr   gdtr;
 
 extern void gdt_flush(uint32_t gdtr_addr);
@@ -46,4 +45,10 @@ void gdt_init(void)
     gdtr.limit = sizeof(gdt) - 1;
     gdtr.base  = (uint32_t)&gdt;
     gdt_flush((uint32_t)&gdtr);
+}
+
+void gdt_set_tss(uint32_t base, uint32_t limit)
+{
+    /* access 0x89 = present, DPL0, 32-bit TSS (available). Byte granularity. */
+    set_entry(5, base, limit, 0x89, 0x00);
 }

@@ -4,6 +4,7 @@
 #include "kprintf.h"
 #include "vga.h"
 #include "console.h"
+#include "syscall.h"
 
 static const char *const EXCEPTION_NAMES[32] = {
     "divide error", "debug", "NMI", "breakpoint",
@@ -50,6 +51,11 @@ void panic(const char *msg, struct registers *r)
 
 void interrupt_dispatch(struct registers *r)
 {
+    if (r->int_no == 0x80) {
+        syscall_dispatch(r);
+        return;
+    }
+
     if (r->int_no < 32) {
         if (r->int_no == 14) {          /* page fault: CR2 holds the address */
             uint32_t cr2;

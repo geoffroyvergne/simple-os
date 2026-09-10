@@ -20,6 +20,7 @@ static struct idt_ptr   idtr;
 
 extern void idt_flush(uint32_t idtr_addr);
 extern void *isr_stub_table[48];
+extern void isr128(void);
 
 void idt_set_gate(uint8_t vec, uint32_t handler, uint16_t sel, uint8_t flags)
 {
@@ -38,6 +39,9 @@ void idt_init(void)
     for (int i = 0; i < 48; i++)
         idt_set_gate((uint8_t)i, (uint32_t)isr_stub_table[i],
                      GDT_KERNEL_CODE, 0x8E);
+
+    /* 0xEE = present, DPL 3, 32-bit interrupt gate: callable from ring 3. */
+    idt_set_gate(0x80, (uint32_t)isr128, GDT_KERNEL_CODE, 0xEE);
 
     idtr.limit = sizeof(idt) - 1;
     idtr.base  = (uint32_t)&idt;

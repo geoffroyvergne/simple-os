@@ -85,6 +85,14 @@ IRQ 13, 45
 IRQ 14, 46
 IRQ 15, 47
 
+; Software interrupt for system calls. Reachable from ring 3 (IDT gate DPL 3).
+global isr128
+isr128:
+    cli
+    push    dword 0
+    push    dword 0x80
+    jmp     int_common
+
 int_common:
     pusha                      ; edi esi ebp esp ebx edx ecx eax
     mov     ax, ds
