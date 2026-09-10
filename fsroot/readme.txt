@@ -1,18 +1,19 @@
 SimpleOS
 ========
 
-This file lives on the SimpleFS (SFS1) volume, read from the primary IDE
-disk with a polled ATA PIO driver.
+You are talking to /sh, a user-mode shell (an ELF program on this
+SimpleFS volume). Every command except 'help', 'exit' and 'reboot' is
+another program loaded from the filesystem.
 
 Try:
   ls
   cat motd.txt
-  stat readme.txt
-  df
-  touch notes.txt
-  write notes.txt hello from the shell
+  hexdump fortune.txt
+  free
+  echo hello there
+  write notes.txt a line of text
   cat notes.txt
   rm notes.txt
 
-Files you create with touch/write persist across reboots because they are
-written back to the disk image.
+Files created with write persist across reboots because they are
+written straight back to the disk image.

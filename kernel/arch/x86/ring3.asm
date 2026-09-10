@@ -1,32 +1,43 @@
 ; =============================================================================
 ; Ring 0 <-> ring 3 transitions with an address-space switch.
 ;
-;   run_user(entry, user_esp, cr3)  saves the kernel CR3/ESP, switches to the
-;                                   process CR3, and iret's to CPL 3.
-;   user_exit(code)                 called from the SYS_exit handler; restores
-;                                   the kernel CR3/ESP and returns from run_user
-;                                   with `code`.
+;   run_user(entry, user_esp, cr3)  saves the kernel CR3/ESP on a small nesting
+;                                   stack, switches to the process CR3, and
+;                                   iret's to CPL 3.
+;   user_exit(code)                 called from the SYS_exit handler; pops the
+;                                   nesting stack, restores CR3/ESP, and returns
+;                                   from the matching run_user with `code`.
+;
+; The nesting stack lets a process spawn another (the parent is suspended inside
+; its SYS_spawn until the child exits).
 ; =============================================================================
 
 [BITS 32]
 
-USER_CS equ 0x1B          ; GDT user code (0x18) | RPL 3
-USER_DS equ 0x23          ; GDT user data (0x20) | RPL 3
-KERN_DS equ 0x10
+USER_CS   equ 0x1B        ; GDT user code (0x18) | RPL 3
+USER_DS   equ 0x23        ; GDT user data (0x20) | RPL 3
+KERN_DS   equ 0x10
+MAX_DEPTH equ 8
 
 section .data
-saved_kesp: dd 0
-saved_cr3:  dd 0
-exit_code:  dd 0
+ctx_kesp:  times MAX_DEPTH dd 0
+ctx_cr3:   times MAX_DEPTH dd 0
+ctx_depth: dd 0
+exit_code: dd 0
 
 section .text
 
 global run_user
 run_user:
+    cli
     pushad
-    mov     [saved_kesp], esp
-    mov     eax, cr3
-    mov     [saved_cr3], eax
+
+    mov     eax, [ctx_depth]
+    mov     [ctx_kesp + eax * 4], esp
+    mov     edx, cr3
+    mov     [ctx_cr3 + eax * 4], edx
+    inc     eax
+    mov     [ctx_depth], eax
 
     mov     ecx, [esp + 32 + 4]      ; entry
     mov     edx, [esp + 32 + 8]      ; user esp
@@ -54,9 +65,13 @@ user_exit:
     mov     eax, [esp + 4]
     mov     [exit_code], eax
 
-    mov     eax, [saved_cr3]
-    mov     cr3, eax
-    mov     esp, [saved_kesp]
+    mov     eax, [ctx_depth]
+    dec     eax
+    mov     [ctx_depth], eax
+
+    mov     edx, [ctx_cr3 + eax * 4]
+    mov     cr3, edx
+    mov     esp, [ctx_kesp + eax * 4]
 
     mov     ax, KERN_DS
     mov     ds, ax

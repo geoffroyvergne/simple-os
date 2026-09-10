@@ -11,16 +11,18 @@
 #define MAX_ARGV    16
 
 struct process {
-    int       pid;
-    uint32_t *dir;
-    uint8_t  *kstack;
-    char      name[32];
+    int              pid;
+    uint32_t        *dir;
+    uint8_t         *kstack;
+    uint32_t         kstack_top;
+    char             name[32];
+    struct process  *prev;       /* caller, restored on exit (nested exec) */
 };
 
 static struct process *current;
 static int next_pid = 1;
 
-struct process *proc_current(void) { return current; }
+int proc_pid(void)   { return current ? current->pid : 0; }
 
 void proc_init(void)
 {
@@ -67,13 +69,11 @@ int proc_exec(const char *path, int argc, char **argv)
         return -1;
 
     uint32_t entry;
-    int rc = elf_load(path, dir, &entry);
-    if (rc < 0) {
+    if (elf_load(path, dir, &entry) < 0) {
         vmm_destroy(dir);
         return -2;
     }
 
-    /* user stack pages */
     for (uint32_t off = 0; off < USER_STACK_SIZE; off += PAGE_SIZE) {
         uint32_t frame = pmm_alloc_frame();
         memset((void *)frame, 0, PAGE_SIZE);
@@ -81,18 +81,18 @@ int proc_exec(const char *path, int argc, char **argv)
     }
     uint32_t user_esp = setup_stack(dir, argc, argv);
 
-    struct process proc = { .pid = next_pid++, .dir = dir };
+    struct process proc = { .pid = next_pid++, .dir = dir, .prev = current };
     proc.kstack = kmalloc(KSTACK_SIZE);
+    proc.kstack_top = (uint32_t)proc.kstack + KSTACK_SIZE;
     strncpy(proc.name, path, sizeof(proc.name) - 1);
 
-    struct process *prev = current;
     current = &proc;
-    tss_set_esp0((uint32_t)proc.kstack + KSTACK_SIZE);
+    tss_set_esp0(proc.kstack_top);
 
     int code = run_user(entry, user_esp, (uint32_t)dir);
 
-    current = prev;
-    tss_set_esp0(tss_kstack_top());
+    current = proc.prev;
+    tss_set_esp0(current ? current->kstack_top : tss_kstack_top());
     kfree(proc.kstack);
     vmm_destroy(dir);
     return code;

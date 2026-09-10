@@ -10,7 +10,6 @@
 #include "drivers/ata.h"
 #include "fs/vfs.h"
 #include "proc/proc.h"
-#include "shell.h"
 
 static void ok(const char *what)
 {
@@ -28,7 +27,7 @@ void kmain(void)
     console_set_color(VGA_LCYAN, VGA_BLACK);
     kprintf("SimpleOS");
     console_set_color(VGA_LGRAY, VGA_BLACK);
-    kprintf("  --  step 8: ELF loader + processes\n\n");
+    kprintf("  --  step 9: user-mode shell + spawn\n\n");
 
     gdt_init();
     ok("GDT");
@@ -57,6 +56,17 @@ void kmain(void)
     proc_init();
     ok("process subsystem");
 
-    kprintf("\n");
-    shell_run();
+    kprintf("\nstarting /sh ...\n\n");
+
+    char *argv[] = { "sh", 0 };
+    for (;;) {
+        int rc = proc_exec("sh", 1, argv);
+        if (rc < 0) {
+            console_set_color(VGA_LRED, VGA_BLACK);
+            kprintf("\nkmain: cannot start /sh (%d) -- halting\n", rc);
+            for (;;)
+                __asm__ volatile("hlt");
+        }
+        kprintf("\n/sh exited (%d), restarting\n\n", rc);
+    }
 }

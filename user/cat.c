@@ -1,20 +1,28 @@
 #include "libc.h"
 
-/* Echoes stdin back to stdout a line at a time until an empty line. A real
- * cat needs an open()/close() syscall on the VFS -- that comes with the
- * filesystem syscalls in a later step. */
 int main(int argc, char **argv)
 {
-    (void)argc;
-    (void)argv;
-    char line[256];
-    puts("type lines; an empty line quits.\n");
-    for (;;) {
-        int n = readline(line, sizeof(line));
-        if (n <= 0)
-            break;
-        write(1, line, (size_t)n);
-        putchar('\n');
+    if (argc < 2) {
+        puts("usage: cat <file> ...\n");
+        return 1;
     }
-    return 0;
+
+    int status = 0;
+    char buf[256];
+
+    for (int i = 1; i < argc; i++) {
+        int fd = open(argv[i], O_RDONLY);
+        if (fd < 0) {
+            puts("cat: ");
+            puts(argv[i]);
+            puts(": not found\n");
+            status = 1;
+            continue;
+        }
+        int n;
+        while ((n = read(fd, buf, sizeof(buf))) > 0)
+            write(1, buf, (size_t)n);
+        close(fd);
+    }
+    return status;
 }

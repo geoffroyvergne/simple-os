@@ -12,7 +12,7 @@ A minimalist operating system built from scratch, step by step, for x86.
 ## Goal
 
 A bootable OS with a terminal, a file system, and the ability to load and run
-ELF binaries. **All three work today** (through Step 8); see the roadmap.
+ELF binaries. **All three work today** (through Step 9); see the roadmap.
 
 ## Toolchain
 
@@ -55,8 +55,7 @@ i386-elf-gdb build/kernel.elf -ex 'target remote :1234' -ex 'break kmain' -ex co
 ```
 boot/            stage 1 + stage 2 bootloader (NASM)
 kernel/
-  main.c           entry point (kmain) — brings up every subsystem, then the shell
-  shell.c          in-kernel shell / command dispatch
+  main.c           entry point (kmain) — brings up every subsystem, then /sh
   arch/x86/        CPU + platform: GDT, IDT, ISRs, TSS, PIC, paging, ring-3
                    switch, port I/O, the E820 boot handoff, linker script
   mm/              bitmap frame allocator, paging setup, kmalloc, per-process
@@ -66,7 +65,8 @@ kernel/
   proc/            ELF loader, process/exec, syscall dispatch
   term/            VGA text console (scrolling terminal)
   lib/             freestanding string.h + kprintf
-user/            freestanding libc, crt0, and user programs (hello, echo, cat)
+user/            freestanding libc + crt0, the shell (sh), and its commands
+                 (ls, cat, hexdump, echo, write, rm, free, hello)
 tools/           mksfs — host tool that builds the SimpleFS image
 fsroot/          plain files packed into the FS image alongside the user programs
 ```
@@ -96,7 +96,7 @@ Kernel headers are included path-qualified from `kernel/`, e.g.
 3. The kernel entry stub zeroes `.bss`, sets up a stack, and calls `kmain`,
    which initializes: console + serial → GDT → TSS → IDT + PIC + syscall gate →
    PIT (100 Hz) → PMM + paging + kmalloc → keyboard → `sti` → ATA + filesystem →
-   process subsystem → shell.
+   process subsystem → /sh (user mode).
 
 ## Memory map
 
@@ -121,15 +121,28 @@ The kernel is still identity-mapped low (no higher-half yet).
 ## System calls
 
 `int 0x80`, with `eax` = call number, `ebx`/`ecx`/`edx` = arguments, result in
-`eax`. User pointers are bounds-checked against the user region.
+`eax`. User pointers are bounds-checked against the user region and copied
+through the kernel.
 
-| # | name     | args                    | notes                              |
-|---|----------|-------------------------|------------------------------------|
-| 0 | `exit`   | `code`                  | tears down the process            |
-| 1 | `write`  | `fd, buf, len`          | `fd` 1/2 → console + serial        |
-| 2 | `read`   | `fd, buf, len`          | `fd` 0 → one line from the keyboard |
-| 3 | `getpid` | –                       | returns 1 (single process for now) |
-| 4 | `yield`  | –                       | no-op until there is a scheduler   |
+| #  | name      | args                     | notes                                   |
+|----|-----------|--------------------------|-----------------------------------------|
+| 0  | `exit`    | `code`                   | tears down the process                  |
+| 1  | `write`   | `fd, buf, len`           | `fd` 1/2 → console+serial, `fd ≥ 3` → file |
+| 2  | `read`    | `fd, buf, len`           | `fd` 0 → keyboard line, `fd ≥ 3` → file  |
+| 3  | `getpid`  | –                        | current process id                      |
+| 4  | `yield`   | –                        | no-op until there is a scheduler        |
+| 5  | `open`    | `path, flags`            | `flags` 0 = read, 1 = write/create; fd ≥ 3 |
+| 6  | `close`   | `fd`                     |                                         |
+| 7  | `lseek`   | `fd, offset`             | absolute                                |
+| 8  | `readdir` | `index, struct dirent *` | enumerate the root directory            |
+| 9  | `stat`    | `path, struct statbuf *` | size + capacity                         |
+| 10 | `spawn`   | `path, char **argv`      | loads an ELF and **blocks** until it exits; returns its code |
+| 11 | `unlink`  | `path`                   |                                         |
+| 12 | `sysinfo` | `struct sysinfo *`       | RAM / heap / uptime                     |
+| 13 | `reboot`  | –                        |                                         |
+
+`spawn` is nested and synchronous: the caller is suspended inside the syscall
+while the child runs. Concurrent processes need the scheduler (Step 10).
 
 ## Filesystem — SimpleFS (SFS1)
 
@@ -147,33 +160,28 @@ superblock changes are flushed back, so files created at runtime survive a
 reboot of the same image. `tools/mksfs.c` packs `fsroot/*` plus the built user
 programs into `build/fs.img` at build time.
 
-## The shell
+## The shell and user programs
 
-Runs in the kernel (for now) and reads lines from the keyboard driver.
+The shell is `user/sh.c` — an ordinary ELF program (`/sh`), started by the
+kernel after boot and restarted if it exits. It has only two built-ins,
+`help` and `exit` (plus `reboot`); every other word is a program name it
+loads from the filesystem via `spawn`.
 
-| command | description |
-|---------|-------------|
-| `help` | list commands |
-| `echo <text>` | print text |
-| `clear` | clear the screen |
-| `ticks` / `uptime` | time since boot |
-| `mem` / `e820` | memory summary / BIOS memory map |
-| `memtest` | exercise `kmalloc`/`kfree` |
-| `ls` / `cat <f>` / `hexdump <f>` / `stat <f>` / `df` | filesystem inspection |
-| `touch <f>` / `write <f> <text>` / `rm <f>` | filesystem mutation |
-| `reboot` | reset via the 8042 controller |
-| `<name> [args]` | load and run an ELF program of that name from the filesystem |
+Everything under `user/` is cross-linked as an `ET_EXEC` ELF at `0x40000000`
+and packed into the FS image by `mksfs`. Programs talk to the kernel only
+through `int 0x80` (`user/libc.c`).
 
-### Bundled user programs
-
-Built from `user/` as `ET_EXEC` ELFs linked at `0x40000000`, packed into the FS
-image. They talk to the kernel only through `int 0x80` (see `user/libc.c`).
-
-| program | behavior |
-|---------|----------|
-| `hello` | prints `pid`, `argc`, and each `argv[i]`; exits 7 |
-| `echo`  | prints its arguments |
-| `cat`   | echoes stdin a line at a time until an empty line |
+| program  | behavior |
+|----------|----------|
+| `sh`     | the shell |
+| `ls`     | list files (`readdir`) |
+| `cat`    | print files (`open`/`read`) |
+| `hexdump`| hex + ASCII dump of a file |
+| `echo`   | print arguments |
+| `write`  | `write <file> <text...>` — append a line, creating the file |
+| `rm`     | delete files (`unlink`) |
+| `free`   | RAM / heap / uptime (`sysinfo`) |
+| `hello`  | prints `pid` / `argc` / `argv`, exits 7 (loader demo) |
 
 ## Roadmap
 
@@ -193,12 +201,12 @@ image. They talk to the kernel only through `int 0x80` (see `user/libc.c`).
       per-page user access control.
 - [x] **Step 8 — ELF loader + processes.** Per-process page directories, an
       ELF32 loader, `argc`/`argv`, and synchronous `exec` from the filesystem.
-      *(A scheduler and concurrent processes are deferred to Step 9.)*
-- [ ] **Step 9 — Real shell + multitasking.** Filesystem syscalls
-      (`open`/`read`/`write`/`readdir`), move the shell into a user ELF, a
-      round-robin timer scheduler, `spawn`/`wait`.
-- [ ] **Later.** `p_flags`-accurate segment permissions, `copy_from_user`
-      validation, a higher-half kernel, demand paging / `sbrk`, and an x86_64
-      port.
+- [x] **Step 9 — User-mode shell.** Filesystem + process syscalls
+      (`open`/`close`/`lseek`/`readdir`/`stat`/`unlink`/`spawn`/`sysinfo`),
+      the shell and every command moved into user ELFs, nested `spawn`.
+- [ ] **Step 10 — Multitasking.** A preemptive round-robin scheduler, per-process
+      kernel state, `spawn` returning a pid + a real `wait`, blocking I/O that
+      sleeps instead of busy-waiting.
+- [ ] **Later.** `p_flags`-accurate segment permissions, a higher-half kernel,
+      demand paging / `sbrk`, subdirectories in the FS, and an x86_64 port.
 
-Each step is a self-contained, buildable commit.
