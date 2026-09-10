@@ -1,43 +1,55 @@
 #include "console.h"
 #include "kprintf.h"
 #include "serial.h"
+#include "gdt.h"
+#include "interrupts.h"
+#include "pit.h"
 
 static void banner(void)
 {
     console_set_color(VGA_LCYAN, VGA_BLACK);
     kprintf("SimpleOS");
     console_set_color(VGA_LGRAY, VGA_BLACK);
-    kprintf("  --  step 2: scrolling terminal + kprintf\n\n");
+    kprintf("  --  step 3: GDT, IDT, PIC, PIT\n\n");
+}
+
+static void ok(const char *what)
+{
+    console_set_color(VGA_LGREEN, VGA_BLACK);
+    kprintf("[ok] ");
+    console_set_color(VGA_LGRAY, VGA_BLACK);
+    kprintf("%s\n", what);
 }
 
 void kmain(void)
 {
     serial_init();
     console_init();
-
     banner();
 
-    console_set_color(VGA_LGREEN, VGA_BLACK);
-    kprintf("[ok] serial COM1 up\n");
-    kprintf("[ok] VGA text console up (80x25)\n\n");
-    console_set_color(VGA_LGRAY, VGA_BLACK);
+    gdt_init();
+    ok("GDT installed (kernel code/data + user selectors)");
 
-    kprintf("kprintf self-test:\n");
-    kprintf("  char     : %c%c%c\n", 'a', 'b', 'c');
-    kprintf("  string   : %s / %8s|\n", "hello", "pad");
-    kprintf("  signed   : %d %d %d\n", 0, -42, 2147483647);
-    kprintf("  unsigned : %u\n", 4000000000u);
-    kprintf("  hex      : %x %X %08x\n", 0xdead, 0xbeef, 0x1234);
-    kprintf("  binary   : %b\n", 0xA5u);
-    kprintf("  pointer  : %p\n", (void *)&kmain);
-    kprintf("  percent  : 100%%\n\n");
+    interrupts_init();
+    ok("IDT installed (48 gates), 8259 PIC remapped to 0x20/0x28");
 
-    kprintf("scroll test (40 lines into a 25-line screen):\n");
-    for (int i = 1; i <= 40; i++)
-        kprintf("  line %2d\n", i);
+    pit_init(PIT_HZ);
+    ok("PIT programmed at 100 Hz, IRQ0 unmasked");
+
+    __asm__ volatile("sti");
+    ok("interrupts enabled (sti)");
+
+    kprintf("\nCPU exceptions route to panic(); IRQs dispatch via a handler table.\n");
+    kprintf("timer heartbeat:\n");
+
+    for (int s = 1; s <= 5; s++) {
+        pit_sleep_ms(1000);
+        uint32_t t = (uint32_t)pit_ticks();
+        kprintf("  %ds elapsed  (ticks=%u)\n", s, t);
+    }
 
     console_set_color(VGA_YELLOW, VGA_BLACK);
-    kprintf("\nhalted. next: GDT reload, IDT, PIC remap, timer, keyboard.\n");
+    kprintf("\ntimer stable, hlt wakes on IRQ0. next: PS/2 keyboard + line input.\n");
 
     for (;;)
         __asm__ volatile("hlt");

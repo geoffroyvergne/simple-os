@@ -15,7 +15,9 @@ LDFLAGS := -m elf_i386 -T kernel/linker.ld -nostdlib --gc-sections
 
 # ---- sources -------------------------------------------------------------
 KERNEL_C   := $(wildcard kernel/*.c)
-KERNEL_OBJ := $(patsubst kernel/%.c,$(BUILD)/%.o,$(KERNEL_C)) $(BUILD)/entry.o
+KERNEL_ASM := $(wildcard kernel/*.asm)
+KERNEL_OBJ := $(patsubst kernel/%.c,$(BUILD)/%.o,$(KERNEL_C)) \
+              $(patsubst kernel/%.asm,$(BUILD)/%.o,$(KERNEL_ASM))
 
 IMG := $(BUILD)/os.img
 
@@ -36,7 +38,7 @@ $(BUILD)/stage2.bin: boot/stage2.asm | dirs
 	@test $$(stat -f%z $@) -le 4096 || { echo "stage2.bin exceeds 8 sectors"; exit 1; }
 
 # ---- kernel -------------------------------------------------------------
-$(BUILD)/entry.o: kernel/entry.asm | dirs
+$(BUILD)/%.o: kernel/%.asm | dirs
 	$(NASM) -f elf32 $< -o $@
 
 $(BUILD)/%.o: kernel/%.c | dirs

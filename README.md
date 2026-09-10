@@ -61,7 +61,7 @@ installs a flat GDT, enters 32-bit protected mode, and jumps to the kernel.
       kernel prints to VGA text mode and COM1.
 - [x] **Step 2 — Terminal output.** Real `printf`-style console: scrolling,
       cursor, colors, `kprintf`.
-- [ ] **Step 3 — Interrupts.** GDT reload from the kernel, IDT, PIC remap,
+- [x] **Step 3 — Interrupts.** GDT reload from the kernel, IDT, PIC remap,
       exception handlers, PIT timer.
 - [ ] **Step 4 — Keyboard.** PS/2 keyboard driver, input line editing.
 - [ ] **Step 5 — Memory management.** Physical frame allocator (parse memory
